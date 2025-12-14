@@ -1,0 +1,502 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Complete EKS Cluster with NodeGroups, Addons, IAM Roles, OIDC, VPC
+
+Parameters:
+  Env:
+    Type: String
+  VpcCidr:
+    Type: String
+  VpcName:
+    Type: String
+  InternetGatewayName:
+    Type: String
+  PubSubName:
+    Type: String
+  PriSubName:
+    Type: String
+  PubRtName:
+    Type: String
+  PriRtName:
+    Type: String
+  EipName:
+    Type: String
+  NgwName:
+    Type: String
+  PublicSubnetCidrs:
+    Type: CommaDelimitedList
+  PrivateSubnetCidrs:
+    Type: CommaDelimitedList
+  AvailabilityZones:
+    Type: CommaDelimitedList
+  EksSG:
+    Type: String
+  IsEksClusterEnabled:
+    Type: String
+    AllowedValues: ["true","false"]
+  ClusterVersion:
+    Type: String
+    Default: "1.33"
+  ClusterName:
+    Type: String
+  EndpointPrivateAccess:
+    Type: String
+    AllowedValues: ["true","false"]
+  EndpointPublicAccess:
+    Type: String
+    AllowedValues: ["true","false"]
+  OndemandInstanceTypes:
+    Type: CommaDelimitedList
+  SpotInstanceTypes:
+    Type: CommaDelimitedList
+  DesiredCapacityOnDemand:
+    Type: Number
+  MinCapacityOnDemand:
+    Type: Number
+  MaxCapacityOnDemand:
+    Type: Number
+  DesiredCapacitySpot:
+    Type: Number
+  MinCapacitySpot:
+    Type: Number
+  MaxCapacitySpot:
+    Type: Number
+
+Conditions:
+  CreateEksCluster: !Equals [!Ref IsEksClusterEnabled, "true"]
+  CreateEksRole: !Equals [true, true]
+  CreateNodegroupRole: !Equals [true, true]
+
+Resources:
+
+  ### VPC ###
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VpcCidr
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: !Ref VpcName
+        - Key: Env
+          Value: !Ref Env
+
+  ### IGW ###
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Ref InternetGatewayName
+        - Key: Env
+          Value: !Ref Env
+        - Key: !Sub "kubernetes.io/cluster/${ClusterName}"
+          Value: owned
+
+  AttachIGW:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref InternetGateway
+
+  ### PUBLIC SUBNETS ###
+  PublicSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Select [0, !Ref PublicSubnetCidrs]
+      AvailabilityZone: !Select [0, !Ref AvailabilityZones]
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub "${PubSubName}-1"
+        - Key: Env
+          Value: !Ref Env
+        - Key: !Sub "kubernetes.io/cluster/${ClusterName}"
+          Value: owned
+
+  PublicSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Select [1, !Ref PublicSubnetCidrs]
+      AvailabilityZone: !Select [1, !Ref AvailabilityZones]
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub "${PubSubName}-2"
+        - Key: Env
+          Value: !Ref Env
+        - Key: !Sub "kubernetes.io/cluster/${ClusterName}"
+          Value: owned
+
+  PublicSubnetC:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Select [2, !Ref PublicSubnetCidrs]
+      AvailabilityZone: !Select [2, !Ref AvailabilityZones]
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub "${PubSubName}-3"
+        - Key: Env
+          Value: !Ref Env
+        - Key: !Sub "kubernetes.io/cluster/${ClusterName}"
+          Value: owned
+
+  ### PUBLIC ROUTE TABLE ###
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Ref PubRtName
+        - Key: Env
+          Value: !Ref Env
+
+  PublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: AttachIGW
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  PublicSubnetARouteAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnetA
+      RouteTableId: !Ref PublicRouteTable
+
+  PublicSubnetBRouteAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnetB
+      RouteTableId: !Ref PublicRouteTable
+
+  PublicSubnetCRouteAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnetC
+      RouteTableId: !Ref PublicRouteTable
+
+  ### NAT ###
+  NatEIP:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+      Tags:
+        - Key: Name
+          Value: !Ref EipName
+        - Key: Env
+          Value: !Ref Env
+
+  NatGateway:
+    Type: AWS::EC2::NatGateway
+    DependsOn: AttachIGW
+    Properties:
+      AllocationId: !GetAtt NatEIP.AllocationId
+      SubnetId: !Ref PublicSubnetA
+      Tags:
+        - Key: Name
+          Value: !Ref NgwName
+        - Key: Env
+          Value: !Ref Env
+
+  ### PRIVATE SUBNETS ###
+  PrivateSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Select [0, !Ref PrivateSubnetCidrs]
+      AvailabilityZone: !Select [0, !Ref AvailabilityZones]
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub "${PriSubName}-1"
+        - Key: Env
+          Value: !Ref Env
+        - Key: !Sub "kubernetes.io/cluster/${ClusterName}"
+          Value: owned
+
+  PrivateSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Select [1, !Ref PrivateSubnetCidrs]
+      AvailabilityZone: !Select [1, !Ref AvailabilityZones]
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub "${PriSubName}-2"
+        - Key: Env
+          Value: !Ref Env
+        - Key: !Sub "kubernetes.io/cluster/${ClusterName}"
+          Value: owned
+
+  PrivateSubnetC:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Select [2, !Ref PrivateSubnetCidrs]
+      AvailabilityZone: !Select [2, !Ref AvailabilityZones]
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub "${PriSubName}-3"
+        - Key: Env
+          Value: !Ref Env
+        - Key: !Sub "kubernetes.io/cluster/${ClusterName}"
+          Value: owned
+
+  ### PRIVATE ROUTE TABLE ###
+  PrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Ref PriRtName
+        - Key: Env
+          Value: !Ref Env
+
+  PrivateRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGateway
+
+  PrivateSubnetARouteAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnetA
+      RouteTableId: !Ref PrivateRouteTable
+
+  PrivateSubnetBRouteAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnetB
+      RouteTableId: !Ref PrivateRouteTable
+
+  PrivateSubnetCRouteAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnetC
+      RouteTableId: !Ref PrivateRouteTable
+
+    ############################
+  # EKS Cluster Security Group
+  ############################
+  EksClusterSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Ref EksSG
+      GroupDescription: "Allow 443 from Jump Server only"
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0   # Replace with a specific IP range if needed
+      SecurityGroupEgress:
+        - IpProtocol: "-1"
+          FromPort: 0
+          ToPort: 0
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: !Ref EksSG
+        - Key: Env
+          Value: !Ref Env
+
+  ############################
+  # EKS Cluster IAM Role
+  ############################
+  EksClusterRole:
+    Type: AWS::IAM::Role
+    Condition: CreateEksRole
+    Properties:
+      RoleName: !Sub "${ClusterName}-role-${AWS::StackName}"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: eks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonEKSClusterPolicy
+      Tags:
+        - Key: Name
+          Value: !Sub "${ClusterName}-cluster-role"
+
+  ############################
+  # EKS Nodegroup IAM Role
+  ############################
+  EksNodegroupRole:
+    Type: AWS::IAM::Role
+    Condition: CreateNodegroupRole
+    Properties:
+      RoleName: !Sub "${ClusterName}-nodegroup-role-${AWS::StackName}"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy
+        - arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy
+        - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
+        - arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy
+      Tags:
+        - Key: Name
+          Value: !Sub "${ClusterName}-nodegroup-role"
+
+############################
+# OIDC Provider
+############################
+  EksOidcProvider:
+    Type: AWS::IAM::OIDCProvider
+    DependsOn: EksCluster
+    Properties:
+      Url: !GetAtt EksCluster.OpenIdConnectIssuerUrl
+      ClientIdList:
+        - sts.amazonaws.com
+
+
+  ############################
+  # EKS Cluster
+  ############################
+  EksCluster:
+    Type: AWS::EKS::Cluster
+    Condition: CreateEksCluster
+    Properties:
+      Name: !Ref ClusterName
+      Version: !Ref ClusterVersion
+      RoleArn: !GetAtt EksClusterRole.Arn
+      ResourcesVpcConfig:
+        SubnetIds:
+          - !Ref PrivateSubnetA
+          - !Ref PrivateSubnetB
+          - !Ref PrivateSubnetC
+        SecurityGroupIds:
+          - !Ref EksClusterSG
+        EndpointPrivateAccess: !Ref EndpointPrivateAccess
+        EndpointPublicAccess: !Ref EndpointPublicAccess
+      Tags:
+        - Key: Name
+          Value: !Ref ClusterName
+        - Key: Env
+          Value: !Ref Env
+
+ 
+  ############################
+  # Nodegroups
+  ############################
+  EksNodegroupOnDemand:
+    Type: AWS::EKS::Nodegroup
+    DependsOn: EksCluster
+    Properties:
+      ClusterName: !Ref EksCluster
+      NodegroupName: !Sub "${ClusterName}-on-demand-nodes"
+      NodeRole: !GetAtt EksNodegroupRole.Arn
+      Subnets:
+        - !Ref PrivateSubnetA
+        - !Ref PrivateSubnetB
+        - !Ref PrivateSubnetC
+      ScalingConfig:
+        DesiredSize: !Ref DesiredCapacityOnDemand
+        MinSize: !Ref MinCapacityOnDemand
+        MaxSize: !Ref MaxCapacityOnDemand
+      InstanceTypes: !Ref OndemandInstanceTypes
+      CapacityType: ON_DEMAND
+      Labels:
+        type: ondemand
+      UpdateConfig:
+        MaxUnavailable: 1
+      Tags:
+        Name: !Sub "${ClusterName}-ondemand-nodes"
+        kubernetes.io/cluster/eks-cluster: owned
+      
+
+  EksNodegroupSpot:
+    Type: AWS::EKS::Nodegroup
+    DependsOn: EksCluster
+    Properties:
+      ClusterName: !Ref EksCluster
+      NodegroupName: !Sub "${ClusterName}-spot-nodes"
+      NodeRole: !GetAtt EksNodegroupRole.Arn
+      Subnets:
+        - !Ref PrivateSubnetA
+        - !Ref PrivateSubnetB
+        - !Ref PrivateSubnetC
+      ScalingConfig:
+        DesiredSize: !Ref DesiredCapacitySpot
+        MinSize: !Ref MinCapacitySpot
+        MaxSize: !Ref MaxCapacitySpot
+      InstanceTypes: !Ref SpotInstanceTypes
+      CapacityType: SPOT
+      DiskSize: 50
+      Labels:
+        type: spot
+        lifecycle: spot
+      UpdateConfig:
+        MaxUnavailable: 1
+      Tags:
+        Name: !Sub "${ClusterName}-spot-nodes"
+        kubernetes.io/cluster/eks-cluster: owned
+
+      
+
+  ############################
+  # Addons
+  ############################
+  EksAddonVpcCni:
+    Type: AWS::EKS::Addon
+    Properties:
+      ClusterName: !Ref EksCluster
+      AddonName: vpc-cni
+      AddonVersion: "v1.20.0-eksbuild.1"
+    DependsOn:
+      - EksNodegroupOnDemand
+      - EksNodegroupSpot
+
+  EksAddonCoreDns:
+    Type: AWS::EKS::Addon
+    Properties:
+      ClusterName: !Ref EksCluster
+      AddonName: coredns
+      AddonVersion: "v1.12.2-eksbuild.4"
+    DependsOn:
+      - EksNodegroupOnDemand
+      - EksNodegroupSpot
+
+  EksAddonKubeProxy:
+    Type: AWS::EKS::Addon
+    Properties:
+      ClusterName: !Ref EksCluster
+      AddonName: kube-proxy
+      AddonVersion: "v1.33.0-eksbuild.2"
+    DependsOn:
+      - EksNodegroupOnDemand
+      - EksNodegroupSpot
+
+  EksAddonEbsCsiDriver:
+    Type: AWS::EKS::Addon
+    Properties:
+      ClusterName: !Ref EksCluster
+      AddonName: aws-ebs-csi-driver
+      AddonVersion: "v1.46.0-eksbuild.1"
+    DependsOn:
+      - EksNodegroupOnDemand
+      - EksNodegroupSpot
+
+Outputs:
+  EksClusterEndpoint:
+    Description: EKS API Server Endpoint
+    Value: !GetAtt EksCluster.Endpoint

@@ -1,0 +1,86 @@
+[
+  {
+    "ParameterKey": "Env",
+    "ParameterValue": "prod"
+  },
+  {
+    "ParameterKey": "VpcCidr",
+    "ParameterValue": "10.16.0.0/16"
+  },
+  {
+    "ParameterKey": "VpcName",
+    "ParameterValue": "prod-vpc"
+  },
+  {
+    "ParameterKey": "InternetGatewayName",
+    "ParameterValue": "prod-igw"
+  },
+  {
+    "ParameterKey": "PubSubName",
+    "ParameterValue": "prod-public-subnet"
+  },
+  {
+    "ParameterKey": "PriSubName",
+    "ParameterValue": "prod-private-subnet"
+  },
+  {
+    "ParameterKey": "PubRtName",
+    "ParameterValue": "prod-public"
+  },
+  {
+    "ParameterKey": "PriRtName",
+    "ParameterValue": "prod-private"
+  },
+  {
+    "ParameterKey": "EipName",
+    "ParameterValue": "prod-nat-eip"
+  },
+  {
+    "ParameterKey": "NgwName",
+    "ParameterValue": "prod-nat-gateway"
+  },
+  {
+    "ParameterKey": "PublicSubnetCidrs",
+    "ParameterValue": "10.16.0.0/20,10.16.16.0/20,10.16.32.0/20"
+  },
+  {
+    "ParameterKey": "PrivateSubnetCidrs",
+    "ParameterValue": "10.16.128.0/20,10.16.144.0/20,10.16.160.0/20"
+  },
+  {
+    "ParameterKey": "AvailabilityZones",
+    "ParameterValue": "us-east-2a,us-east-2b,us-east-2c"
+  },
+  {
+    "ParameterKey": "AmiId",
+    "ParameterValue": "ami-025ca978d4c1d9825"
+  },
+  {
+    "ParameterKey": "InstanceType",
+    "ParameterValue": "t3.micro"
+  },
+  {
+    "ParameterKey": "MinSize",
+    "ParameterValue": "3"
+  },
+  {
+    "ParameterKey": "MaxSize",
+    "ParameterValue": "3"
+  },
+  {
+    "ParameterKey": "DesiredCapacity",
+    "ParameterValue": "3"
+  },
+  {
+    "ParameterKey": "LaunchTemplateName",
+    "ParameterValue": "prod-web-server"
+  },
+  {
+    "ParameterKey": "AlbName",
+    "ParameterValue": "prod-alb"
+  },
+  {
+    "ParameterKey": "AlbTargetGroupName",
+    "ParameterValue": "prod-alb-tg"
+  }
+]

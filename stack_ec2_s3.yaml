@@ -1,0 +1,35 @@
+Resources:
+  S3Bucket:
+    Type: 'AWS::S3::Bucket'
+    Properties:
+      BucketName: "my-bucket-11122025-unique"
+      VersioningConfiguration:
+        Status: Enabled
+      Tags:
+        - Key: Environment
+          Value: Production
+  
+  Ec2Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t3.micro
+      ImageId: ami-00e428798e77d38d9
+      NetworkInterfaces:
+        - DeviceIndex: 0
+          SubnetId: subnet-0de0afc2997bfc075
+          AssociatePublicIpAddress: true
+      Tags:
+        - Key: "env"
+          Value: "prod"
+        - Key: "Name"
+          Value: "Prod-server"
+
+Outputs:
+  BucketNameOutput:
+    Description: "The name of the S3 bucket"
+    Value: !Ref S3Bucket
+
+  Ec2PublicIp:
+    Description: "The public IP address of the EC2 instance"
+    Value: !GetAtt Ec2Instance.PublicIp
+
