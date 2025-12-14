@@ -15,9 +15,13 @@ Mappings:
         dev: ami-00e428798e77d38d9  #Amazon Linux 2 AMI
         prod: ami-0f5fcdfbd140e4ab7 #Ubuntu Server 20.04 LTS
 
+Conditions: !Equals [ !Ref Environment, "prod" ]  #Create S3 bucket only in prod environment
+    
+
 Resources:
   S3Bucket:
     Type: 'AWS::S3::Bucket'
+    Condition: CreateBucket
     Properties:
       BucketName: !Ref S3BucketName
       VersioningConfiguration:

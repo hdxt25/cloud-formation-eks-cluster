@@ -379,6 +379,82 @@ Resources:
         Value: prod-server
         PropagateAtLaunch: true
 
+  ### CloudWatch Log Group ###
+  HostedZoneCloudWatchLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: "/aws/route53/webapp"
+      RetentionInDays: 1
+
+  ##SNS Topic##
+  SNSTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: Alerts
+  
+  ###SNS Subscription###
+  SNSSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Protocol: email
+      Endpoint: hdxt100@gmail.com
+      TopicArn: !Ref SNSTopic
+
+  ##Hosted Zone##
+  HostedZone:
+    Type: AWS::Route53::HostedZone
+    Properties:
+      Name: example.com  # Replace with your domain
+      QueryLoggingConfig:
+        # CloudWatchLogsLogGroupArn: !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/route53/example
+        # Use !Sub only when: Log group already exists, Created outside CloudFormation, Cross-account constraints exist.
+        CloudWatchLogsLogGroupArn: !GetAtt HostedZoneCloudWatchLogGroup.Arn 
+
+  ###Resource Record###
+  ResourceRecord:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      # HostedZoneName: example.com.  # Must exactly match the hosted zone name & Must end with a dot (.)
+      HostedZoneId: !Ref HostedZone
+      Name: web.example.com.  # Replace with your desired subdomain
+      Type: CNAME
+      TTL: '900'
+      ResourceRecords:
+        - !GetAtt ALB.DNSName
+
+  ###Log Resource Policy###
+  LogResourcePolicy:
+      Type: AWS::Logs::ResourcePolicy
+      Properties:
+        PolicyName: "LogResourcePolicy"
+        PolicyDocument: !Sub '{"Version":"2012-10-17","Statement":[{"Action":["logs:CreateLogStream","logs:PutLogEvents"],"Resource":"arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/route53/webapp"}]}'
+
+  ###CloudWatch Alarm###
+  CloudWatchAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmActions:
+        - !Sub  'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:SNSTopic'
+      AlarmDescription: This alarm triggers when CPU utilization exceeds 70% for 5 minutes.
+      AlarmName: CPU-Utilization-High-ALARM
+      ComparisonOperator: GreaterThanOrEqualToThreshold      
+      DatapointsToAlarm: 1
+      MetricName: CPUUtilization
+      Dimension:
+        - Name: AutoScalingGroupName
+          Value: !Ref AutoScalingGroup
+      EvaluationPeriods: 1
+      Namespace: AWS/EC2
+      Period: 300
+      Statistic: Maximum
+      Threshold: 2  # Put 70 if if Trigger alarm if CpuUtilization exceeds 70%
+      TreatMissingData: breaching
+
+
+
+
+
+
 ####################
 # OUTPUTS
 ####################
