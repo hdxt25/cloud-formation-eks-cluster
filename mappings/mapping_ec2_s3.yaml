@@ -1,0 +1,52 @@
+Parameters:
+    S3BucketName:
+      Type: String
+    InstanceType:
+      Type: String
+    Environment:
+      Type: String
+
+Mappings:
+    RegionMap:
+      us-east-1:
+        dev: ami-068c0051b15cdb816
+        prod: ami-0ecb62995f68bb549
+      us-east-2:
+        dev: ami-00e428798e77d38d9
+        prod: ami-0f5fcdfbd140e4ab7
+
+Resources:
+  S3Bucket:
+    Type: 'AWS::S3::Bucket'
+    Properties:
+      BucketName: !Ref S3BucketName
+      VersioningConfiguration:
+        Status: Enabled
+      Tags:
+        - Key: Environment
+          Value: Production
+  
+  Ec2Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: !Ref InstanceType
+      ImageId: !FindInMap [RegionMap, !Ref "AWS::Region", !Ref Environment]
+      NetworkInterfaces:
+        - DeviceIndex: 0
+          SubnetId: subnet-0de0afc2997bfc075
+          AssociatePublicIpAddress: true
+      Tags:
+        - Key: "env"
+          Value: "prod"
+        - Key: "Name"
+          Value: "Prod-server"
+
+Outputs:
+  BucketNameOutput:
+    Description: "The name of the S3 bucket"
+    Value: !Ref S3Bucket
+
+  Ec2PublicIp:
+    Description: "The public IP address of the EC2 instance"
+    Value: !GetAtt Ec2Instance.PublicIp
+

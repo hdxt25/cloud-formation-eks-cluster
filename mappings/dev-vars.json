@@ -1,0 +1,14 @@
+[
+{
+    "ParameterKey": "Environment",
+    "ParameterValue": "dev"
+  },
+  {
+    "ParameterKey": "S3BucketName",
+    "ParameterValue": "my-bucket-11122025-unique"
+  },
+  {
+    "ParameterKey": "InstanceType",
+    "ParameterValue": "t3.micro"
+  }
+]
