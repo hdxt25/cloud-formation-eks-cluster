@@ -9,11 +9,11 @@ Parameters:
 Mappings:
     RegionMap:
       us-east-1:
-        dev: ami-068c0051b15cdb816
-        prod: ami-0ecb62995f68bb549
+        dev: ami-068c0051b15cdb816  #Amazon Linux 2 AMI
+        prod: ami-0ecb62995f68bb549 #Ubuntu Server 20.04 LTS
       us-east-2:
-        dev: ami-00e428798e77d38d9
-        prod: ami-0f5fcdfbd140e4ab7
+        dev: ami-00e428798e77d38d9  #Amazon Linux 2 AMI
+        prod: ami-0f5fcdfbd140e4ab7 #Ubuntu Server 20.04 LTS
 
 Resources:
   S3Bucket:
