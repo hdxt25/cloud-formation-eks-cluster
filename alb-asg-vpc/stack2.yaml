@@ -451,7 +451,7 @@ Resources:
       Namespace: AWS/EC2
       Period: 300
       Statistic: Maximum
-      Threshold: 2  # Put 70 if if Trigger alarm if CpuUtilization exceeds 70%
+      Threshold: 70  # Put 70 if if Trigger alarm if CpuUtilization exceeds 70%
       TreatMissingData: breaching
 
 
