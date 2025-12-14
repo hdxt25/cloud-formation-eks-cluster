@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: "2010-09-09"
-Description: VPC with Public & Private Subnets, NAT Gateway, ALB, and ASG
+Description: "In Region us-east-1: VPC with Public & Private Subnets, NAT Gateway, ALB, and ASG"
 
 ####################
 # PARAMETERS
@@ -379,12 +379,45 @@ Resources:
         Value: prod-server
         PropagateAtLaunch: true
 
-  ### CloudWatch Log Group ###
+  ### CloudWatch Log Group for Route 53 only work in us-east-1###
   HostedZoneCloudWatchLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: "/aws/route53/webapp"
       RetentionInDays: 1
+
+
+  ###Log Resource Policy###
+  LogResourcePolicy:
+    Type: AWS::Logs::ResourcePolicy
+    Properties:
+      PolicyName: "LogResourcePolicy"
+      PolicyDocument: !Sub '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"Service":"route53.amazonaws.com"},"Action":["logs:CreateLogStream","logs:PutLogEvents"],"Resource":"arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/route53/webapp:*"}]}'
+
+
+  ##Hosted Zone##
+  HostedZone:
+    Type: AWS::Route53::HostedZone
+    DependsOn:
+      - HostedZoneCloudWatchLogGroup
+      - LogResourcePolicy
+    Properties:
+      Name: devops.com  # Replace with your domain
+      QueryLoggingConfig:
+        # Route53 query logging is global, and it only works with CloudWatch Logs in us-east-1 only.
+        CloudWatchLogsLogGroupArn: !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/route53/webapp:*'
+
+  ###Resource Record###
+  ResourceRecord:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      # HostedZoneName: devops.com.  # Must exactly match the hosted zone name & Must end with a dot (.)
+      HostedZoneId: !Ref HostedZone
+      Name: web.devops.com.  # Replace with your desired subdomain
+      Type: CNAME
+      TTL: '900'
+      ResourceRecords:
+        - !GetAtt ALB.DNSName
 
   ##SNS Topic##
   SNSTopic:
@@ -400,47 +433,18 @@ Resources:
       Endpoint: hdxt100@gmail.com
       TopicArn: !Ref SNSTopic
 
-  ##Hosted Zone##
-  HostedZone:
-    Type: AWS::Route53::HostedZone
-    Properties:
-      Name: example.com  # Replace with your domain
-      QueryLoggingConfig:
-        # CloudWatchLogsLogGroupArn: !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/route53/example
-        # Use !Sub only when: Log group already exists, Created outside CloudFormation, Cross-account constraints exist.
-        CloudWatchLogsLogGroupArn: !GetAtt HostedZoneCloudWatchLogGroup.Arn 
-
-  ###Resource Record###
-  ResourceRecord:
-    Type: AWS::Route53::RecordSet
-    Properties:
-      # HostedZoneName: example.com.  # Must exactly match the hosted zone name & Must end with a dot (.)
-      HostedZoneId: !Ref HostedZone
-      Name: web.example.com.  # Replace with your desired subdomain
-      Type: CNAME
-      TTL: '900'
-      ResourceRecords:
-        - !GetAtt ALB.DNSName
-
-  ###Log Resource Policy###
-  LogResourcePolicy:
-      Type: AWS::Logs::ResourcePolicy
-      Properties:
-        PolicyName: "LogResourcePolicy"
-        PolicyDocument: !Sub '{"Version":"2012-10-17","Statement":[{"Action":["logs:CreateLogStream","logs:PutLogEvents"],"Resource":"arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/route53/webapp"}]}'
-
   ###CloudWatch Alarm###
   CloudWatchAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
       AlarmActions:
-        - !Sub  'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:SNSTopic'
+        - !Sub '${SNSTopic}'
       AlarmDescription: This alarm triggers when CPU utilization exceeds 70% for 5 minutes.
       AlarmName: CPU-Utilization-High-ALARM
       ComparisonOperator: GreaterThanOrEqualToThreshold      
       DatapointsToAlarm: 1
       MetricName: CPUUtilization
-      Dimension:
+      Dimensions:
         - Name: AutoScalingGroupName
           Value: !Ref AutoScalingGroup
       EvaluationPeriods: 1

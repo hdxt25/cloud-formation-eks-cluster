@@ -49,11 +49,11 @@
   },
   {
     "ParameterKey": "AvailabilityZones",
-    "ParameterValue": "us-east-2a,us-east-2b,us-east-2c"
+    "ParameterValue": "us-east-1a,us-east-1b,us-east-1c"
   },
   {
     "ParameterKey": "AmiId",
-    "ParameterValue": "ami-025ca978d4c1d9825"
+    "ParameterValue": "ami-068c0051b15cdb816"
   },
   {
     "ParameterKey": "InstanceType",
