@@ -1,0 +1,43 @@
+Parameters:
+    InstanceType:
+      Type: String
+    Environment:
+      Type: String
+    ImageId:
+      Type: String
+
+Rules:
+    devInstanceType:
+      RuleCondition: !Equals [ !Ref Environment, "dev" ]
+      Assertions:
+        - Assert: !Equals [ !Ref InstanceType, "t3.micro" ] # Instance type must be t3.micro in dev
+          AssertDescription: "InstanceType must be t3.micro"
+    prodInstanceType:
+      RuleCondition: !Equals [ !Ref Environment, "prod" ]
+      Assertions:
+        - Assert: !Equals [ !Ref InstanceType, "c7i-flex.large" ] # Instance type must be c7i-flex.large in prod
+          AssertDescription: "InstanceType must be c7i-flex.large"
+
+    
+
+Resources:
+  Ec2Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: !Ref InstanceType
+      ImageId: !Ref ImageId
+      NetworkInterfaces:
+        - DeviceIndex: 0
+          SubnetId: subnet-0de0afc2997bfc075
+          AssociatePublicIpAddress: true
+      Tags:
+        - Key: "env"
+          Value: "prod"
+        - Key: "Name"
+          Value: "Prod-server"
+
+Outputs:
+  Ec2PublicIp:
+    Description: "The public IP address of the EC2 instance"
+    Value: !GetAtt Ec2Instance.PublicIp
+

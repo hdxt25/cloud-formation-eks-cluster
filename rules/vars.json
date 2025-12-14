@@ -1,0 +1,5 @@
+[
+    {"ParameterKey": "Environment","ParameterValue": "prod"},
+    {"ParameterKey": "ImageId","ParameterValue": "ami-00e428798e77d38d9"},
+    {"ParameterKey": "InstanceType","ParameterValue": "c7i-flex.large"}      
+]
